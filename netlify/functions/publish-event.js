@@ -104,14 +104,17 @@ async function debugEventimNavigation() {
         
         // Test 1: Naviguer vers la homepage d'abord
         console.log('🏠 Test 1: Navigation vers homepage Eventim...');
+        let homepageTitle = 'unknown';
+        let homepageUrl = 'unknown';
+        
         try {
             await page.goto('https://www.eventim-light.com', { 
                 waitUntil: 'domcontentloaded',
                 timeout: 10000
             });
             
-            const homepageTitle = await page.title();
-            const homepageUrl = page.url();
+            homepageTitle = await page.title();
+            homepageUrl = page.url();
             console.log(`✅ Homepage accessible: ${homepageTitle} - ${homepageUrl}`);
             
         } catch (e) {
@@ -119,7 +122,8 @@ async function debugEventimNavigation() {
             return {
                 success: false,
                 error: 'Homepage Eventim inaccessible',
-                details: e.message
+                details: e.message,
+                currentUrl: page.url()
             };
         }
         
