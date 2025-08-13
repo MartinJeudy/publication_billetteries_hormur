@@ -230,7 +230,28 @@ async function publishToEventimReal(eventData) {
         
         // ÉTAPE 5: Cliquer sur le bouton Connexion
         console.log('[EVENTIM] Recherche du bouton Connexion...');
-        const connexionButton = await page.$('button[type="submit"]:has-text("Connexion"), button:has-text("Connexion")');
+        
+        // Utiliser XPath pour chercher par texte (plus fiable)
+        let connexionButton = null;
+        
+        try {
+            // Méthode 1: XPath par texte
+            const buttons = await page.$x('//button[contains(text(), "Connexion")]');
+            if (buttons.length > 0) {
+                connexionButton = buttons[0];
+                console.log('[EVENTIM] Bouton trouvé via XPath');
+            }
+        } catch (e) {
+            console.log('[EVENTIM] Erreur XPath:', e.message);
+        }
+        
+        // Méthode 2: CSS selector basique (fallback)
+        if (!connexionButton) {
+            connexionButton = await page.$('button[type="submit"]');
+            if (connexionButton) {
+                console.log('[EVENTIM] Bouton trouvé via CSS submit');
+            }
+        }
         
         if (!connexionButton) {
             return {
