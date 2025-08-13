@@ -1,4 +1,4 @@
-// netlify/functions/publish-event.js - TEST PUPPETEER PROGRESSIF
+// netlify/functions/publish-event.js - VERSION CORRIGÉE HTTP/2
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
@@ -10,7 +10,7 @@ const CREDENTIALS = {
 };
 
 exports.handler = async (event) => {
-    console.log('🚀 Test Puppeteer démarré');
+    console.log('🚀 Test Puppeteer corrigé démarré');
     
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -35,8 +35,8 @@ exports.handler = async (event) => {
         const eventData = JSON.parse(event.body);
         console.log('📝 Données reçues:', eventData.title);
 
-        // Test Puppeteer simple : juste ouvrir une page
-        const puppeteerResult = await testPuppeteer();
+        // Test Puppeteer avec configuration corrigée
+        const puppeteerResult = await testPuppeteerFixed();
         
         return {
             statusCode: 200,
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
                 },
                 puppeteerTest: puppeteerResult,
                 debug: {
-                    chromiumVersion: await chromium.executablePath(),
+                    chromiumPath: await chromium.executablePath(),
                     timestamp: new Date().toISOString()
                 }
             })
@@ -70,13 +70,13 @@ exports.handler = async (event) => {
     }
 };
 
-async function testPuppeteer() {
-    console.log('🔍 Démarrage test Puppeteer...');
+async function testPuppeteerFixed() {
+    console.log('🔍 Démarrage test Puppeteer corrigé...');
     let browser = null;
     
     try {
-        // Configuration Puppeteer pour Netlify
-        console.log('🌐 Lancement du navigateur...');
+        // Configuration Puppeteer optimisée pour Netlify
+        console.log('🌐 Lancement du navigateur avec config corrigée...');
         browser = await puppeteer.launch({
             args: [
                 ...chromium.args,
@@ -87,98 +87,139 @@ async function testPuppeteer() {
                 '--no-first-run',
                 '--no-zygote',
                 '--deterministic-fetch',
-                '--disable-features=VizDisplayCompositor'
+                '--disable-features=VizDisplayCompositor',
+                // Corrections pour HTTP/2 et réseau
+                '--disable-http2',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--disable-renderer-backgrounding',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-client-side-phishing-detection',
+                '--disable-default-apps',
+                '--disable-extensions',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--no-default-browser-check',
+                '--safebrowsing-disable-auto-update',
+                '--disable-features=site-per-process'
             ],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
-            headless: chromium.headless
+            headless: chromium.headless,
+            timeout: 60000
         });
 
         console.log('✅ Navigateur lancé avec succès');
 
         const page = await browser.newPage();
-        console.log('📄 Nouvelle page créée');
-
-        // Test 1: Page simple (Google)
-        console.log('🔗 Navigation vers Google...');
-        await page.goto('https://www.google.com', { 
-            waitUntil: 'networkidle0',
-            timeout: 30000 
+        
+        // Configuration page pour éviter les détections
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'
         });
         
-        const title = await page.title();
-        console.log('📖 Titre de la page:', title);
+        console.log('📄 Page configurée');
 
-        // Test 2: Essayer Eventim (juste la page d'accueil)
-        console.log('🎫 Navigation vers Eventim...');
-        await page.goto('https://www.eventim-light.com', { 
-            waitUntil: 'networkidle0',
-            timeout: 30000 
-        });
-        
-        const eventimTitle = await page.title();
-        console.log('🎪 Titre Eventim:', eventimTitle);
-
-        // Test 3: Vérifier si on peut voir la page de login
+        // Test 1: Site simple (httpbin pour tester la connectivité)
+        console.log('🔗 Test connectivité basique...');
         try {
-            console.log('🔐 Test navigation vers login...');
-            await page.goto('https://www.eventim-light.com/fr/login', { 
+            await page.goto('https://httpbin.org/get', { 
                 waitUntil: 'networkidle0',
                 timeout: 20000 
             });
+            console.log('✅ Connectivité basique OK');
+        } catch (e) {
+            console.log('❌ Problème connectivité basique:', e.message);
+            throw new Error('Pas de connectivité réseau');
+        }
+
+        // Test 2: Google (HTTP/1.1 fallback)
+        console.log('🔗 Navigation vers Google...');
+        await page.goto('https://www.google.com', { 
+            waitUntil: 'domcontentloaded',
+            timeout: 20000 
+        });
+        
+        const title = await page.title();
+        console.log('📖 Titre Google:', title);
+
+        // Test 3: Eventim avec retry et timeout réduit
+        console.log('🎫 Test Eventim...');
+        let eventimResult = {};
+        
+        try {
+            await page.goto('https://www.eventim-light.com', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 15000 
+            });
+            
+            const eventimTitle = await page.title();
+            console.log('🎪 Titre Eventim:', eventimTitle);
+            eventimResult.homepage = { success: true, title: eventimTitle };
+            
+        } catch (eventimError) {
+            console.log('⚠️ Eventim homepage échec:', eventimError.message);
+            eventimResult.homepage = { success: false, error: eventimError.message };
+        }
+
+        // Test 4: Page login Eventim
+        try {
+            console.log('🔐 Test page login Eventim...');
+            await page.goto('https://www.eventim-light.com/fr/login', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 15000 
+            });
             
             const loginTitle = await page.title();
-            console.log('🔑 Page login titre:', loginTitle);
+            console.log('🔑 Titre login:', loginTitle);
             
-            // Chercher le champ email
-            const emailField = await page.$('input[type="email"]');
-            const hasEmailField = !!emailField;
-            console.log('📧 Champ email trouvé:', hasEmailField);
+            // Test sélecteurs
+            await page.waitForTimeout(2000); // Attendre le chargement
+            const emailField = await page.$('input[type="email"], input[name="email"]');
+            const passwordField = await page.$('input[type="password"], input[name="password"]');
             
-            return {
+            eventimResult.login = {
                 success: true,
-                tests: {
-                    browserLaunch: true,
-                    googleNavigation: true,
-                    googleTitle: title,
-                    eventimNavigation: true,
-                    eventimTitle: eventimTitle,
-                    loginNavigation: true,
-                    loginTitle: loginTitle,
-                    emailFieldFound: hasEmailField
-                },
-                message: 'Tous les tests Puppeteer réussis'
+                title: loginTitle,
+                emailField: !!emailField,
+                passwordField: !!passwordField
             };
             
         } catch (loginError) {
-            console.log('⚠️ Erreur sur la page login:', loginError.message);
-            return {
-                success: false,
-                tests: {
-                    browserLaunch: true,
-                    googleNavigation: true,
-                    googleTitle: title,
-                    eventimNavigation: true,
-                    eventimTitle: eventimTitle,
-                    loginNavigation: false,
-                    loginError: loginError.message
-                },
-                message: 'Erreur lors de l\'accès à la page login'
-            };
+            console.log('⚠️ Login page échec:', loginError.message);
+            eventimResult.login = { success: false, error: loginError.message };
         }
+
+        return {
+            success: true,
+            tests: {
+                browserLaunch: true,
+                basicConnectivity: true,
+                googleNavigation: true,
+                googleTitle: title,
+                eventim: eventimResult
+            },
+            message: 'Tests Puppeteer terminés avec config corrigée'
+        };
 
     } catch (error) {
         console.error('💥 Erreur Puppeteer:', error);
         return {
             success: false,
             error: error.message,
-            step: 'browser_launch',
-            message: 'Échec du lancement du navigateur'
+            message: 'Erreur lors des tests Puppeteer'
         };
     } finally {
         if (browser) {
             console.log('🔒 Fermeture du navigateur...');
-            await browser.close();
+            try {
+                await browser.close();
+            } catch (e) {
+                console.log('⚠️ Erreur fermeture navigateur:', e.message);
+            }
         }
     }
 }
