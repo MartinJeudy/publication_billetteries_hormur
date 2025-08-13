@@ -1,4 +1,4 @@
-// netlify/functions/publish-event.js - AUTOMATISATION RÉELLE (MODE TEST)
+// netlify/functions/publish-event.js - CORRECTION BOUTON CONNEXION
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
@@ -10,7 +10,7 @@ const CREDENTIALS = {
 };
 
 exports.handler = async (event) => {
-    console.log('🚀 Automatisation RÉELLE démarrée');
+    console.log('🚀 Automatisation avec détection bouton améliorée');
     
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -60,8 +60,8 @@ exports.handler = async (event) => {
             category: eventData.category || 'Concert'
         };
 
-        // Publier sur Eventim (mode test pour commencer)
-        const eventimResult = await publishToEventimReal(formattedData);
+        // Publier sur Eventim avec détection bouton améliorée
+        const eventimResult = await publishToEventimImproved(formattedData);
         
         return {
             statusCode: 200,
@@ -92,8 +92,8 @@ exports.handler = async (event) => {
     }
 };
 
-async function publishToEventimReal(eventData) {
-    console.log('🎪 [EVENTIM] Début de l\'automatisation réelle');
+async function publishToEventimImproved(eventData) {
+    console.log('🎪 [EVENTIM] Automatisation avec détection bouton améliorée');
     let browser = null;
     
     try {
@@ -133,11 +133,11 @@ async function publishToEventimReal(eventData) {
             timeout: 20000 
         });
         
-        await page.waitForTimeout(3000); // Laisser la page se charger
+        await page.waitForTimeout(3000);
         
-        // ÉTAPE 2: Gérer les cookies si nécessaire
+        // ÉTAPE 2: Gérer les cookies
         try {
-            const cookieButton = await page.$('[data-testid="cookie-accept-all"], button[id*="cookie"], button[class*="cookie"]');
+            const cookieButton = await page.$('[data-testid="cookie-accept-all"], button[id*="cookie"], button[class*="cookie"], .cookie-accept');
             if (cookieButton) {
                 await cookieButton.click();
                 console.log('[EVENTIM] Cookies acceptés');
@@ -147,10 +147,9 @@ async function publishToEventimReal(eventData) {
             console.log('[EVENTIM] Pas de bannière cookies');
         }
         
-        // ÉTAPE 3: Trouver et remplir le champ email
+        // ÉTAPE 3: Trouver et remplir l'email
         console.log('[EVENTIM] Recherche du champ email...');
         
-        // Essayer plusieurs sélecteurs pour l'email
         const emailSelectors = [
             'input[type="email"]',
             'input[name="email"]', 
@@ -171,37 +170,18 @@ async function publishToEventimReal(eventData) {
         }
         
         if (!emailField) {
-            // Debug: prendre une capture des éléments de la page
-            const allInputs = await page.$$eval('input', inputs => 
-                inputs.map(input => ({
-                    type: input.type,
-                    name: input.name,
-                    id: input.id,
-                    placeholder: input.placeholder,
-                    className: input.className
-                }))
-            );
-            
             return {
                 success: false,
                 platform: 'eventim',
-                error: 'Champ email non trouvé',
-                debug: {
-                    step: 'email_field_search',
-                    allInputs: allInputs,
-                    url: page.url(),
-                    title: await page.title()
-                }
+                error: 'Champ email non trouvé'
             };
         }
         
-        // ÉTAPE 4: Saisir l'email
-        console.log('[EVENTIM] Saisie de l\'email...');
         await emailField.click();
         await page.waitForTimeout(500);
         await emailField.type(CREDENTIALS.eventim.email, { delay: 100 });
         
-        // ÉTAPE 5: Trouver et remplir le mot de passe
+        // ÉTAPE 4: Remplir le mot de passe
         console.log('[EVENTIM] Recherche du champ mot de passe...');
         const passwordField = await page.$('input[type="password"]');
         
@@ -217,49 +197,142 @@ async function publishToEventimReal(eventData) {
         await page.waitForTimeout(500);
         await passwordField.type(CREDENTIALS.eventim.password, { delay: 100 });
         
-        // ÉTAPE 6: Cliquer sur le bouton de connexion
-        console.log('[EVENTIM] Recherche du bouton de connexion...');
+        // ÉTAPE 5: DÉTECTION AMÉLIORÉE DU BOUTON
+        console.log('[EVENTIM] Recherche avancée du bouton de connexion...');
+        
+        // D'abord, faire un debug de tous les boutons disponibles
+        const allButtons = await page.$$eval('button, input[type="submit"], input[type="button"], a[role="button"]', buttons => 
+            buttons.map(btn => ({
+                tagName: btn.tagName,
+                type: btn.type,
+                textContent: btn.textContent?.trim(),
+                innerHTML: btn.innerHTML,
+                className: btn.className,
+                id: btn.id,
+                role: btn.role,
+                formAction: btn.formAction,
+                onclick: btn.onclick ? 'has_onclick' : null
+            }))
+        );
+        
+        console.log('[EVENTIM] Boutons trouvés sur la page:', JSON.stringify(allButtons, null, 2));
+        
+        // Essayer plusieurs méthodes pour trouver le bouton
+        let loginButton = null;
+        let loginMethod = null;
+        
+        // Méthode 1: Sélecteurs directs
         const loginSelectors = [
             'button[type="submit"]',
             'input[type="submit"]',
-            'button:has-text("Connexion")',
-            'button:has-text("Se connecter")',
-            'button:has-text("Login")',
-            '[data-testid="login"]'
+            'button:contains("Connexion")',
+            'button:contains("Se connecter")',
+            'button:contains("Login")',
+            'button:contains("Einloggen")',
+            '[data-testid="login"]',
+            '[data-testid="submit"]',
+            '.login-button',
+            '.submit-button'
         ];
         
-        let loginButton = null;
         for (const selector of loginSelectors) {
             try {
                 loginButton = await page.$(selector);
                 if (loginButton) {
-                    const text = await loginButton.textContent();
-                    console.log(`[EVENTIM] Bouton trouvé: "${text}" avec ${selector}`);
+                    loginMethod = `selector: ${selector}`;
+                    console.log(`[EVENTIM] Bouton trouvé avec: ${selector}`);
                     break;
                 }
             } catch (e) {
-                // Ignorer les erreurs de sélecteur
+                // Ignorer
             }
         }
         
+        // Méthode 2: Chercher par texte avec XPath
         if (!loginButton) {
-            return {
-                success: false,
-                platform: 'eventim',
-                error: 'Bouton de connexion non trouvé'
-            };
+            try {
+                const xpathSelectors = [
+                    '//button[contains(text(), "Connexion")]',
+                    '//button[contains(text(), "Se connecter")]', 
+                    '//button[contains(text(), "Login")]',
+                    '//button[contains(text(), "Einloggen")]',
+                    '//input[@type="submit"]',
+                    '//button[@type="submit"]'
+                ];
+                
+                for (const xpath of xpathSelectors) {
+                    try {
+                        const elements = await page.$x(xpath);
+                        if (elements.length > 0) {
+                            loginButton = elements[0];
+                            loginMethod = `xpath: ${xpath}`;
+                            console.log(`[EVENTIM] Bouton trouvé avec XPath: ${xpath}`);
+                            break;
+                        }
+                    } catch (e) {
+                        // Ignorer
+                    }
+                }
+            } catch (e) {
+                console.log('[EVENTIM] Erreur XPath:', e.message);
+            }
         }
         
-        // ÉTAPE 7: Se connecter
-        console.log('[EVENTIM] Tentative de connexion...');
-        await Promise.all([
-            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
-            loginButton.click()
-        ]);
+        // Méthode 3: Chercher le formulaire et le soumettre directement
+        if (!loginButton) {
+            try {
+                console.log('[EVENTIM] Tentative de soumission directe du formulaire...');
+                const form = await page.$('form');
+                if (form) {
+                    await form.evaluate(form => form.submit());
+                    loginMethod = 'form_submit';
+                    console.log('[EVENTIM] Formulaire soumis directement');
+                } else {
+                    return {
+                        success: false,
+                        platform: 'eventim',
+                        error: 'Aucun bouton de connexion trouvé et pas de formulaire',
+                        debug: {
+                            allButtons: allButtons,
+                            url: page.url(),
+                            title: await page.title()
+                        }
+                    };
+                }
+            } catch (e) {
+                return {
+                    success: false,
+                    platform: 'eventim',
+                    error: 'Impossible de soumettre le formulaire',
+                    debug: {
+                        allButtons: allButtons,
+                        submitError: e.message
+                    }
+                };
+            }
+        }
+        
+        // ÉTAPE 6: Cliquer sur le bouton ou soumettre
+        if (loginButton && loginMethod !== 'form_submit') {
+            console.log('[EVENTIM] Clic sur le bouton de connexion...');
+            try {
+                await Promise.all([
+                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+                    loginButton.click()
+                ]);
+            } catch (e) {
+                // Si la navigation échoue, essayer juste le clic
+                await loginButton.click();
+                await page.waitForTimeout(3000);
+            }
+        } else if (loginMethod === 'form_submit') {
+            // Attendre après soumission directe
+            await page.waitForTimeout(5000);
+        }
         
         console.log('[EVENTIM] Navigation après login, URL:', page.url());
         
-        // ÉTAPE 8: Vérifier si la connexion a réussi
+        // ÉTAPE 7: Vérifier le succès de la connexion
         await page.waitForTimeout(3000);
         const currentUrl = page.url();
         const pageTitle = await page.title();
@@ -271,59 +344,24 @@ async function publishToEventimReal(eventData) {
                 error: 'Échec de la connexion - encore sur la page login',
                 debug: {
                     url: currentUrl,
-                    title: pageTitle
+                    title: pageTitle,
+                    loginMethod: loginMethod,
+                    allButtons: allButtons
                 }
             };
         }
         
         console.log('✅ [EVENTIM] Connexion réussie !');
         
-        // ÉTAPE 9: Aller vers la création d'événement
-        console.log('[EVENTIM] Navigation vers création d\'événement...');
-        
-        // Chercher le lien/bouton pour créer un événement
-        const createEventSelectors = [
-            'a[href*="nouvel"]',
-            'a[href*="creer"]', 
-            'a[href*="create"]',
-            'a[href*="new"]',
-            'button:has-text("Créer")',
-            'button:has-text("Nouvel")',
-            '[data-testid="create-event"]'
-        ];
-        
-        let createButton = null;
-        for (const selector of createEventSelectors) {
-            try {
-                createButton = await page.$(selector);
-                if (createButton) {
-                    console.log(`[EVENTIM] Bouton création trouvé avec: ${selector}`);
-                    break;
-                }
-            } catch (e) {
-                // Ignorer
-            }
-        }
-        
-        if (createButton) {
-            await createButton.click();
-            await page.waitForTimeout(3000);
-        } else {
-            // Essayer d'aller directement à l'URL de création
-            await page.goto('https://www.eventim-light.com/fr/evenements', { 
-                waitUntil: 'domcontentloaded',
-                timeout: 15000 
-            });
-        }
-        
         return {
             success: true,
             platform: 'eventim',
-            message: `Test de connexion réussi ! Connecté en tant que ${CREDENTIALS.eventim.email}`,
+            message: `Connexion réussie avec la méthode: ${loginMethod}`,
             debug: {
-                finalUrl: page.url(),
-                finalTitle: await page.title(),
-                step: 'login_completed'
+                finalUrl: currentUrl,
+                finalTitle: pageTitle,
+                loginMethod: loginMethod,
+                buttonsFound: allButtons.length
             }
         };
         
@@ -332,10 +370,7 @@ async function publishToEventimReal(eventData) {
         return {
             success: false,
             platform: 'eventim',
-            error: error.message,
-            debug: {
-                step: 'unknown_error'
-            }
+            error: error.message
         };
     } finally {
         if (browser) {
