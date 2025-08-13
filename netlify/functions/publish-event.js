@@ -1,9 +1,16 @@
-// netlify/functions/publish-event.js - VERSION DIAGNOSTIC ULTRA-SIMPLE
+// netlify/functions/publish-event.js - TEST PROGRESSIF EVENTIM
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
+const CREDENTIALS = {
+    eventim: {
+        email: process.env.EVENTIM_EMAIL,
+        password: process.env.EVENTIM_PASSWORD
+    }
+};
+
 exports.handler = async (event) => {
-    console.log('🚀 Version diagnostic démarrée');
+    console.log('🚀 Test progressif Eventim démarré');
     
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -24,90 +31,47 @@ exports.handler = async (event) => {
         };
     }
 
-    // PROTECTION CONTRE LES CRASHES
     try {
-        console.log('📝 Début du traitement...');
-        
         const eventData = JSON.parse(event.body);
-        console.log('✅ JSON parsé avec succès');
+        console.log('📝 Test pour:', eventData.title);
 
-        // Test 1: Vérifier les variables d'environnement
-        const hasEmail = !!process.env.EVENTIM_EMAIL;
-        const hasPassword = !!process.env.EVENTIM_PASSWORD;
-        
-        console.log('🔑 Variables d\'env - Email:', hasEmail, 'Password:', hasPassword);
-
-        if (!hasEmail || !hasPassword) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({
-                    success: false,
-                    error: 'Variables d\'environnement manquantes',
-                    debug: { hasEmail, hasPassword }
-                })
-            };
-        }
-
-        // Test 2: Essayer juste de lancer Puppeteer (sans aller sur aucun site)
-        console.log('🌐 Test lancement Puppeteer minimal...');
-        
-        const puppeteerResult = await testMinimalPuppeteer();
+        // Test progressif d'accès à Eventim
+        const eventimTest = await testEventimAccess();
         
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({
                 success: true,
-                message: 'Test diagnostic terminé',
+                message: 'Test progressif Eventim terminé',
                 eventTitle: eventData.title,
-                credentials: { hasEmail, hasPassword },
-                puppeteer: puppeteerResult,
+                eventimTest: eventimTest,
                 debug: {
-                    nodeVersion: process.version,
-                    timestamp: new Date().toISOString(),
-                    chromiumPath: await chromium.executablePath()
+                    timestamp: new Date().toISOString()
                 }
             })
         };
 
     } catch (error) {
-        console.error('💥 ERREUR FATALE:', error);
-        
-        // Réponse d'urgence même en cas d'erreur grave
-        try {
-            return {
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({
-                    success: false,
-                    error: 'Erreur fatale dans la fonction',
-                    details: error.message,
-                    stack: error.stack,
-                    type: error.constructor.name
-                })
-            };
-        } catch (jsonError) {
-            // Si même le JSON.stringify échoue, retourner du texte brut
-            return {
-                statusCode: 500,
-                headers: { 'Content-Type': 'text/plain' },
-                body: `ERREUR CRITIQUE: ${error.message}`
-            };
-        }
+        console.error('💥 Erreur:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({
+                success: false,
+                error: error.message,
+                stack: error.stack
+            })
+        };
     }
 };
 
-async function testMinimalPuppeteer() {
-    console.log('🔍 Test Puppeteer minimal...');
+async function testEventimAccess() {
+    console.log('🎪 Test d\'accès progressif à Eventim');
     let browser = null;
     
     try {
-        console.log('📂 Récupération du chemin Chromium...');
-        const executablePath = await chromium.executablePath();
-        console.log('✅ Chemin Chromium:', executablePath);
-        
-        console.log('🚀 Lancement du navigateur...');
+        // Configuration Puppeteer avec timeouts réduits
         browser = await puppeteer.launch({
             args: [
                 ...chromium.args,
@@ -115,56 +79,176 @@ async function testMinimalPuppeteer() {
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
-                '--disable-http2'
+                '--disable-http2',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
             ],
             defaultViewport: chromium.defaultViewport,
-            executablePath: executablePath,
+            executablePath: await chromium.executablePath(),
             headless: chromium.headless,
-            timeout: 30000  // 30 secondes max
+            timeout: 30000
         });
-        
-        console.log('✅ Navigateur lancé');
-        
-        console.log('📄 Création d\'une page...');
+
         const page = await browser.newPage();
-        console.log('✅ Page créée');
         
-        console.log('🌐 Navigation vers une page ultra-simple...');
-        await page.goto('data:text/html,<h1>Test OK</h1>', { 
-            waitUntil: 'domcontentloaded',
-            timeout: 10000 
+        // Configuration anti-détection
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         });
         
-        const title = await page.title();
-        console.log('📖 Titre récupéré:', title);
-        
-        console.log('🔒 Fermeture du navigateur...');
-        await browser.close();
-        browser = null;
-        
+        console.log('📄 Page configurée');
+
+        const results = {};
+
+        // ÉTAPE 1: Test site simple d'abord
+        console.log('🌐 Test 1: Site simple (httpbin.org)...');
+        try {
+            await page.goto('https://httpbin.org/get', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 10000 
+            });
+            results.simpleTest = { success: true, message: 'Site simple accessible' };
+            console.log('✅ Site simple OK');
+        } catch (e) {
+            results.simpleTest = { success: false, error: e.message };
+            console.log('❌ Site simple KO:', e.message);
+        }
+
+        // ÉTAPE 2: Test Eventim homepage avec timeout court
+        console.log('🎪 Test 2: Eventim homepage...');
+        try {
+            await page.goto('https://www.eventim-light.com', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 8000  // Timeout très court
+            });
+            
+            const title = await page.title();
+            const url = page.url();
+            results.eventimHomepage = { 
+                success: true, 
+                title: title,
+                url: url,
+                message: 'Homepage accessible'
+            };
+            console.log('✅ Eventim homepage OK:', title);
+            
+        } catch (e) {
+            results.eventimHomepage = { success: false, error: e.message };
+            console.log('❌ Eventim homepage KO:', e.message);
+            
+            // Si homepage échoue, pas la peine de continuer
+            return {
+                success: false,
+                message: 'Eventim homepage inaccessible',
+                results: results
+            };
+        }
+
+        // ÉTAPE 3: Test page login avec timeout court
+        console.log('🔐 Test 3: Page login...');
+        try {
+            await page.goto('https://www.eventim-light.com/fr/login', { 
+                waitUntil: 'domcontentloaded',
+                timeout: 8000
+            });
+            
+            const loginTitle = await page.title();
+            const loginUrl = page.url();
+            
+            // Attendre un peu que la page se charge
+            await page.waitForTimeout(2000);
+            
+            // Chercher les champs principaux
+            const emailField = await page.$('input[type="email"], input[name="email"]');
+            const passwordField = await page.$('input[type="password"]');
+            
+            results.eventimLogin = {
+                success: true,
+                title: loginTitle,
+                url: loginUrl,
+                hasEmailField: !!emailField,
+                hasPasswordField: !!passwordField,
+                message: 'Page login accessible'
+            };
+            console.log('✅ Page login OK');
+            
+        } catch (e) {
+            results.eventimLogin = { success: false, error: e.message };
+            console.log('❌ Page login KO:', e.message);
+            
+            return {
+                success: false,
+                message: 'Page login inaccessible',
+                results: results
+            };
+        }
+
+        // ÉTAPE 4: Test simple de remplissage (SANS soumission)
+        console.log('✍️ Test 4: Remplissage des champs (test)...');
+        try {
+            // Trouver et remplir l'email
+            const emailField = await page.$('input[type="email"], input[name="email"]');
+            if (emailField) {
+                await emailField.click();
+                await page.waitForTimeout(500);
+                await emailField.type('test@example.com', { delay: 50 }); // Email de test
+                console.log('✅ Champ email rempli');
+            }
+            
+            // Trouver et remplir le mot de passe
+            const passwordField = await page.$('input[type="password"]');
+            if (passwordField) {
+                await passwordField.click();
+                await page.waitForTimeout(500);
+                await passwordField.type('testpassword', { delay: 50 }); // Mot de passe de test
+                console.log('✅ Champ password rempli');
+            }
+            
+            // Chercher les boutons (SANS cliquer)
+            const buttons = await page.$$eval('button, input[type="submit"]', btns => 
+                btns.map(btn => ({
+                    tag: btn.tagName,
+                    type: btn.type,
+                    text: btn.textContent?.trim(),
+                    className: btn.className,
+                    id: btn.id
+                }))
+            );
+            
+            results.formTest = {
+                success: true,
+                message: 'Formulaire testé sans soumission',
+                emailFilled: !!emailField,
+                passwordFilled: !!passwordField,
+                buttonsFound: buttons.length,
+                buttons: buttons
+            };
+            
+            console.log('✅ Test formulaire OK, boutons trouvés:', buttons.length);
+            
+        } catch (e) {
+            results.formTest = { success: false, error: e.message };
+            console.log('❌ Test formulaire KO:', e.message);
+        }
+
         return {
             success: true,
-            message: 'Puppeteer fonctionne parfaitement',
-            pageTitle: title,
-            chromiumPath: executablePath
+            message: 'Tests progressifs terminés avec succès',
+            results: results
         };
         
     } catch (error) {
-        console.error('❌ Erreur Puppeteer:', error.message);
-        
-        if (browser) {
-            try {
-                await browser.close();
-            } catch (closeError) {
-                console.error('❌ Erreur fermeture browser:', closeError.message);
-            }
-        }
-        
+        console.error('❌ Erreur globale:', error.message);
         return {
             success: false,
             error: error.message,
-            errorType: error.constructor.name,
-            step: 'puppeteer_test'
+            message: 'Erreur lors des tests progressifs'
         };
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
     }
 }
