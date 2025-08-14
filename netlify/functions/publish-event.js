@@ -1,4 +1,4 @@
-// netlify/functions/publish-event.js - EVENTIM AVEC SÉLECTEURS CORRIGÉS
+// netlify/functions/publish-event.js - VERSION ULTRA-SÉCURISÉE
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
@@ -9,18 +9,8 @@ const CREDENTIALS = {
     }
 };
 
-// SÉLECTEURS STABLES (PAR ATTRIBUT NAME - NE CHANGENT PAS)
-const SELECTORS = {
-    eventim: {
-        emailField: 'input[name="username"]',    // STABLE: utilise l'attribut name
-        passwordField: 'input[name="password"]', // STABLE: utilise l'attribut name  
-        loginButton: '[data-cy="login_button"]', // Backup avec attributs
-        // Autres sélecteurs à découvrir après connexion...
-    }
-};
-
 exports.handler = async (event) => {
-    console.log('🎪 Version EVENTIM avec sélecteurs STABLES (attributs name)');
+    console.log('🛡️ Version ULTRA-SÉCURISÉE démarrée');
     
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -41,73 +31,71 @@ exports.handler = async (event) => {
         };
     }
 
+    // TRIPLE PROTECTION CONTRE LES CRASHES
+    let result = null;
+    
     try {
         const eventData = JSON.parse(event.body);
-        console.log('📝 Test connexion Eventim pour:', eventData.title);
+        console.log('📝 Test ultra-court pour:', eventData.title);
 
-        // Valider les données
-        if (!eventData.title || !eventData.date) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Données manquantes',
-                    required: ['title', 'date']
-                })
-            };
-        }
-
-        // Protection timeout
+        // TIMEOUT ULTRA-COURT - 15 secondes MAX
         const timeoutPromise = new Promise((resolve) => {
             setTimeout(() => {
+                console.log('⏰ TIMEOUT 15s atteint');
                 resolve({
                     success: false,
-                    error: 'Timeout de sécurité (30 secondes)'
+                    error: 'Timeout ultra-court (15s)',
+                    message: 'Interrompu pour éviter crash Netlify'
                 });
-            }, 30000);
+            }, 15000);
         });
 
-        // Test connexion EVENTIM avec sélecteurs corrigés
-        const workPromise = testEventimLoginFixed();
-        const result = await Promise.race([workPromise, timeoutPromise]);
+        const workPromise = ultraQuickTest();
+        result = await Promise.race([workPromise, timeoutPromise]);
         
+    } catch (outerError) {
+        console.error('💥 Erreur niveau 1:', outerError);
+        result = {
+            success: false,
+            error: 'Erreur niveau 1: ' + outerError.message,
+            type: 'outer_catch'
+        };
+    }
+
+    // PROTECTION FINALE DE LA RÉPONSE
+    try {
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({
-                success: result.success,
-                message: result.success 
-                    ? 'Connexion Eventim réussie avec sélecteurs STABLES !' 
-                    : 'Échec connexion Eventim',
-                eventTitle: eventData.title,
-                results: {
-                    eventim: result
-                },
+                success: result?.success || false,
+                message: 'Test ultra-sécurisé terminé',
+                result: result,
                 debug: {
                     timestamp: new Date().toISOString(),
-                    selectorsUsed: SELECTORS.eventim
+                    protection: 'triple-layer'
                 }
             })
         };
-
-    } catch (error) {
-        console.error('💥 Erreur:', error);
+    } catch (jsonError) {
+        console.error('💥 Erreur JSON final:', jsonError);
+        // DERNIER RECOURS: Texte pur
         return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({
-                success: false,
-                error: error.message
-            })
+            statusCode: 200,
+            headers: { 'Content-Type': 'text/plain' },
+            body: `ERREUR JSON: ${jsonError.message}. Result: ${JSON.stringify(result)}`
         };
     }
 };
 
-async function testEventimLoginFixed() {
-    console.log('🔐 Test connexion Eventim avec sélecteurs STABLES (attributs name)');
+async function ultraQuickTest() {
+    console.log('⚡ Test ultra-rapide Eventim');
     let browser = null;
     
     try {
+        console.log('🚀 Lancement navigateur ultra-rapide...');
+        
+        // Configuration minimaliste
         browser = await puppeteer.launch({
             args: [
                 ...chromium.args,
@@ -116,176 +104,76 @@ async function testEventimLoginFixed() {
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
                 '--disable-http2',
-                '--disable-web-security'
+                '--disable-images',
+                '--disable-javascript', // Désactiver JS pour aller plus vite
+                '--disable-plugins',
+                '--disable-extensions'
             ],
-            defaultViewport: chromium.defaultViewport,
+            defaultViewport: { width: 800, height: 600 }, // Plus petit
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
-            timeout: 15000
+            timeout: 8000 // Timeout très court pour le launch
         });
 
         const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-        await page.setExtraHTTPHeaders({
-            'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'
-        });
+        console.log('📄 Page créée');
         
-        console.log('🌐 Navigation vers login...');
+        // Configuration ultra-basique
+        await page.setUserAgent('Mozilla/5.0 (compatible; Bot)');
+        
+        // Test 1: Juste aller à la page login (RIEN d'autre)
+        console.log('🌐 Navigation ultra-rapide vers login...');
         await page.goto('https://www.eventim-light.com/fr/login', { 
-            waitUntil: 'networkidle0',
-            timeout: 15000
+            waitUntil: 'domcontentloaded',
+            timeout: 5000 // Timeout très court
         });
         
-        console.log('⏱️ Attente chargement complet...');
-        await page.waitForTimeout(3000);
+        const title = await page.title();
+        const url = page.url();
+        console.log(`✅ Page atteinte: ${title}`);
         
-        // Gérer popup cookies si présent
-        try {
-            const cookieButton = await page.$('#cmpclosebntnotxt');
-            if (cookieButton) {
-                await cookieButton.click();
-                console.log('🍪 Popup cookies fermé');
-                await page.waitForTimeout(1000);
-            }
-        } catch (e) {
-            console.log('🍪 Pas de popup cookies');
-        }
+        // Test 2: Juste vérifier si les champs existent (SANS les remplir)
+        console.log('🔍 Vérification rapide champs...');
+        await page.waitForTimeout(2000); // Attente courte
         
-        // UTILISER LES SÉLECTEURS CORRIGÉS
-        console.log('📧 Remplissage email avec sélecteur stable...');
-        await page.waitForSelector(SELECTORS.eventim.emailField, { timeout: 8000 });
-        await page.click(SELECTORS.eventim.emailField);
-        await page.type(SELECTORS.eventim.emailField, CREDENTIALS.eventim.email, { delay: 100 });
-        console.log('✅ Email saisi avec input[name="username"]');
+        const emailExists = await page.$('input[name="username"]') !== null;
+        const passwordExists = await page.$('input[name="password"]') !== null;
         
-        console.log('🔒 Remplissage password avec sélecteur stable...');
-        await page.waitForSelector(SELECTORS.eventim.passwordField, { timeout: 5000 });
-        await page.click(SELECTORS.eventim.passwordField);
-        await page.type(SELECTORS.eventim.passwordField, CREDENTIALS.eventim.password, { delay: 100 });
-        console.log('✅ Password saisi avec input[name="password"]');
-        
-        // Chercher le bouton de connexion
-        console.log('🔘 Recherche bouton connexion...');
-        let loginButton = null;
-        
-        // Méthode 1: data-cy
-        try {
-            loginButton = await page.$(SELECTORS.eventim.loginButton);
-            if (loginButton) {
-                console.log('✅ Bouton trouvé via data-cy');
-            }
-        } catch (e) {
-            console.log('❌ data-cy non trouvé');
-        }
-        
-        // Méthode 2: XPath par texte
-        if (!loginButton) {
-            try {
-                const buttons = await page.$x('//button[contains(text(), "Connexion") or contains(text(), "Login") or contains(text(), "Einloggen")]');
-                if (buttons.length > 0) {
-                    loginButton = buttons[0];
-                    console.log('✅ Bouton trouvé via XPath');
-                }
-            } catch (e) {
-                console.log('❌ XPath non trouvé');
-            }
-        }
-        
-        // Méthode 3: Premier bouton submit
-        if (!loginButton) {
-            loginButton = await page.$('button[type="submit"]');
-            if (loginButton) {
-                console.log('✅ Bouton trouvé via submit');
-            }
-        }
-        
-        if (!loginButton) {
-            // Debug: lister tous les boutons
-            const allButtons = await page.$$eval('button', buttons => 
-                buttons.map(btn => ({
-                    text: btn.textContent?.trim(),
-                    type: btn.type,
-                    className: btn.className,
-                    dataCy: btn.getAttribute('data-cy')
-                }))
-            );
-            
-            return {
-                success: false,
-                error: 'Bouton connexion non trouvé',
-                debug: {
-                    allButtons: allButtons,
-                    emailFieldFound: true,
-                    passwordFieldFound: true,
-                    currentUrl: page.url()
-                }
-            };
-        }
-        
-        console.log('🚀 Tentative de connexion...');
-        
-        // Cliquer et attendre navigation
-        try {
-            await Promise.all([
-                page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }),
-                loginButton.click()
-            ]);
-        } catch (navError) {
-            // Si navigation échoue, juste cliquer et attendre
-            await loginButton.click();
-            await page.waitForTimeout(5000);
-        }
-        
-        // Vérifier le succès de la connexion
-        const finalUrl = page.url();
-        const finalTitle = await page.title();
-        
-        console.log(`🎯 Après connexion: ${finalUrl}`);
-        
-        if (finalUrl.includes('login')) {
-            return {
-                success: false,
-                error: 'Connexion échouée - encore sur login',
-                debug: {
-                    finalUrl: finalUrl,
-                    finalTitle: finalTitle,
-                    selectorsUsed: {
-                        email: SELECTORS.eventim.emailField,
-                        password: SELECTORS.eventim.passwordField
-                    }
-                }
-            };
-        }
-        
-        console.log('✅ Connexion Eventim réussie !');
+        console.log(`📧 Email field: ${emailExists ? 'OUI' : 'NON'}`);
+        console.log(`🔒 Password field: ${passwordExists ? 'OUI' : 'NON'}`);
         
         return {
             success: true,
             platform: 'eventim',
-            message: 'Connexion Eventim réussie avec sélecteurs STABLES (attributs name) !',
+            message: 'Test ultra-rapide réussi - SANS connexion',
             debug: {
-                finalUrl: finalUrl,
-                finalTitle: finalTitle,
-                selectorsWorked: true,
-                emailSelector: SELECTORS.eventim.emailField,
-                passwordSelector: SELECTORS.eventim.passwordField
+                title: title,
+                url: url,
+                emailFieldExists: emailExists,
+                passwordFieldExists: passwordExists,
+                mode: 'ultra-quick-no-login'
             }
         };
         
     } catch (error) {
-        console.error('❌ Erreur connexion:', error.message);
+        console.error('❌ Erreur test ultra-rapide:', error.message);
         return {
             success: false,
+            platform: 'eventim',
             error: error.message,
             debug: {
-                step: 'connection_test',
-                selectorsUsed: SELECTORS.eventim
+                step: 'ultra_quick_failed',
+                mode: 'no-login-attempt'
             }
         };
     } finally {
         if (browser) {
-            console.log('🔒 Fermeture navigateur');
-            await browser.close();
+            console.log('🔒 Fermeture navigateur ultra-rapide');
+            try {
+                await browser.close();
+            } catch (closeError) {
+                console.log('⚠️ Erreur fermeture:', closeError.message);
+            }
         }
     }
 }
